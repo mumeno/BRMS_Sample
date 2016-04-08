@@ -55,9 +55,9 @@ rule "名詞-助詞-名詞の連結" //フェーズ5
 	// AAAのBBB のケースを想定　http://mitizane.ll.chiba-u.jp/metadb/up/AN10532524/KJ00000204178.pdf
 	salience 48
 	when
-		i1: Inner(品詞 matches "^名詞,.*", id1 : ID, p1 :位置, n1: 内容) ?minPosition()
+		i1 : Inner(品詞 matches "^名詞,.*", id1 : ID, p1 :位置, n1: 内容) ?minPosition()
 		i2 : Inner(品詞 matches "^助詞,.*", ID == id1, p2: 位置 == p1+n1.length(), n2: 内容) 
-		Inner(品詞 matches "^名詞,.*", ID == id1, p3: 位置 == p1+n1.length()+n2.length()) 
+		i3 : Inner(品詞 matches "^名詞,.*", ID == id1, p3: 位置 == p1+n1.length()+n2.length()) 
 
 	then
 		String str = new String(n1 + n2);
