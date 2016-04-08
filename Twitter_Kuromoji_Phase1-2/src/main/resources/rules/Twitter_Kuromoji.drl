@@ -1,0 +1,50 @@
+//created on: 2016/01/28
+package TwitterKuromojiBRMS
+
+//list any import classes here.
+import twitter4j.Status
+import org.atilika.kuromoji.Token;
+import org.atilika.kuromoji.Tokenizer;
+import org.atilika.kuromoji.Tokenizer.Builder;
+import java.util.List;
+
+
+declare Status
+	@role(event)
+	@expires (3s)
+end
+
+rule "単純に出力"
+	when
+		Status($t: text) from entry-point "TwitterEntryPoint"
+	then
+	System.out.println($t);
+end
+
+
+/*
+//Phase1
+rule "lang が ja 以外はEntryPointから消す"
+salience 100
+	when
+		$s : Status(lang != "ja") from entry-point "TwitterEntryPoint"
+	then
+	 retract($s);	
+end		
+*/
+
+/*
+// Phase2
+rule "kuromoji にて形態素解析"
+salience 50
+	when
+		$s : Status($t: text, $id :id ) from entry-point "TwitterEntryPoint"
+		tokenizer : Tokenizer() from entry-point "TwitterEntryPoint"
+	then
+		System.out.println($t);
+		List<Token> tokens = tokenizer.tokenize($t);
+		for (Token token : tokens) {
+		System.out.println(token.getPartOfSpeech() + ":" + token.getSurfaceForm() + " 位置:" + token.getPosition());
+		}
+end
+*/
