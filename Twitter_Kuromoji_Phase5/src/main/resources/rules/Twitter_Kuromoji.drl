@@ -1,0 +1,150 @@
+//created on: 2016/01/28
+package TwitterKuromojiBRMS
+
+//list any import classes here.
+import twitter4j.Status
+import java.text.MessageFormat
+import org.atilika.kuromoji.Token;
+import org.atilika.kuromoji.Tokenizer;
+import org.atilika.kuromoji.Tokenizer.Builder;
+import java.util.List;
+
+
+declare Status
+	@role(event)
+	@expires (5s)
+end
+
+query minPosition()
+	inner : Inner() from accumulate (Inner(p1:位置), min(p1))
+end
+
+
+
+rule "lang が ja 以外はEntryPointから消す"
+salience 100
+	when
+		$s : Status(lang != "ja") from entry-point "TwitterEntryPoint"
+	then
+	 retract($s);	
+end		
+
+
+rule "kuromoji にて形態素解析"
+salience 50
+	when
+		Status($t : text, $id :id ) from entry-point "TwitterEntryPoint"
+		tokenizer : Tokenizer() from entry-point "TwitterEntryPoint"
+	then
+		System.out.println("----------本文----------\n" + $t + "\n-----------------------\n");
+		List<Token> tokens = tokenizer.tokenize($t);
+//		int tokenNumber =0;
+		for (Token token : tokens) {
+		System.out.println(token.getPartOfSpeech() + ":" + token.getSurfaceForm() + " 位置:" + token.getPosition());
+		Inner inner = new Inner($id, token.getPartOfSpeech(), token.getSurfaceForm(), token.getPosition());
+		
+		if (inner.get品詞().startsWith("名詞") || inner.get品詞().startsWith("助詞,連体化")){  // フェーズ4でコメントアウトを解除してください。
+		insert(inner);
+		} // フェーズ4でコメントアウトを解除してください。
+		
+//		tokenNumber++;
+		}
+//		System.out.println("kuromoji 分割回数: " + tokenNumber );
+end
+
+
+rule "名詞-名詞の連結"
+	salience 48
+	when
+		i1: Inner(品詞 matches "^名詞,.*", id1 : ID, p1 :位置, n1: 内容) ?minPosition()
+		i2: Inner(品詞 matches "^名詞,.*", ID == id1, p2: 位置 == p1+n1.length(), n2: 内容)
+	then
+		String str = new String(n1 + n2);
+		i1.set内容(str);
+		i1.set品詞("名詞,連結");
+		System.out.println("*******名詞連結: \"" + n1 + "\" + \""+ n2 + "\" => " + str );
+		update(i1);
+		retract(i2);
+	end
+
+
+rule "名詞-助詞-名詞の連結"
+	// AAAのBBB のケースを想定　http://mitizane.ll.chiba-u.jp/metadb/up/AN10532524/KJ00000204178.pdf
+	salience 48
+	when
+		i1: Inner(品詞 matches "^名詞,.*", id1 : ID, p1 :位置, n1: 内容) ?minPosition()
+		i2: Inner(品詞 matches "^助詞,.*", ID == id1, p2: 位置 == p1+n1.length(), n2: 内容) 
+		Inner(品詞 matches "^名詞,.*", ID == id1, p3: 位置 == p1+n1.length()+n2.length()) 
+
+	then
+		String str = new String(n1 + n2);
+		i1.set内容(str);
+		i1.set品詞("名詞,連結");
+		System.out.println("***名詞助詞連結: \"" + n1 + "\" + \""+ n2 + "\" => " + str );
+		update(i1);
+		retract(i2);
+	end
+
+
+rule "Delete noize3"
+	salience 49
+	when
+		$i : Inner(内容 == null);
+	then
+	retract ($i);
+end	
+
+
+rule "ID は外す"
+	salience 47
+	when
+		$i: Inner( 内容 matches "^@.*" )
+	then
+	retract ($i)
+end
+
+/*
+rule "URL は外す"
+	salience 47
+	when
+		$i: Inner( 内容 matches "^http.*" )
+	then
+	retract ($i)
+end
+*/
+
+rule "kuromoji 辞書の制限 文字の途中に#はダメ"
+	salience 47
+	when
+		$i: Inner(内容 matches ".*#.*")
+	then
+		retract ($i)
+end
+
+rule "kuromoji 辞書の制限 文字の途中に,はダメ"
+	salience 47
+	when
+		$i: Inner(内容 matches ".*,.*") 
+	then
+		retract ($i)
+end
+
+
+rule "名詞,非自立,一般"
+	salience 47
+	when
+		$i: Inner(品詞 == "名詞,非自立,一般", (内容 =="ん" || 内容 =="の" ||内容=="こと"))
+	then
+		retract($i);
+end
+
+rule "名詞,サ変接続"
+	salience 47
+	when
+		$i: Inner(品詞 == "名詞,サ変接続", (内容 =="(" || 内容 ==")" ||内容=="#"))
+	then
+		retract($i);
+end
+
+
+
